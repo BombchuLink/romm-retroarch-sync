@@ -8912,7 +8912,7 @@ class SyncWindow(Gtk.ApplicationWindow):
         # Write to file only if debug mode is enabled
         if debug_mode:
             try:
-                log_file = Path.home() / '.config' / 'romm-retroarch-sync' / 'debug.log'
+                log_file = Path(os.environ.get('ROMM_CONFIG_DIR', Path.home() / '.config' / 'romm-retroarch-sync' / 'debug.log'))
                 log_file.parent.mkdir(parents=True, exist_ok=True)
                 with open(log_file, 'a', encoding='utf-8') as f:
                     import datetime

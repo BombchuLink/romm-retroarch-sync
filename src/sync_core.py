@@ -83,7 +83,7 @@ class GameDataCache:
     
     def __init__(self, settings_manager):
         self.settings = settings_manager
-        self.cache_dir = Path.home() / '.config' / 'romm-retroarch-sync' / 'cache'
+        _base = Path(os.environ.get('ROMM_CONFIG_DIR', Path.home() / '.config' / 'romm-retroarch-sync'))
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
         # Cache files
@@ -703,7 +703,7 @@ class SettingsManager:
     """Handle saving and loading application settings"""
     
     def __init__(self):
-        self.config_dir = Path.home() / '.config' / 'romm-retroarch-sync'
+        _base = Path(os.environ.get('ROMM_CONFIG_DIR', Path.home() / '.config' / 'romm-retroarch-sync'))
         self.config_file = self.config_dir / 'settings.ini'
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -763,8 +763,8 @@ class SettingsManager:
                 'auto_refresh': 'false'
             }
             self.config['Download'] = {
-                'rom_directory': str(Path.home() / 'RomMSync' / 'roms'),
-                'save_directory': str(Path.home() / 'RomMSync' / 'saves'),
+                'rom_directory': str(Path(os.environ.get('ROMM_SYNC_DIR', Path.home() / 'RomMSync' / 'roms'))),
+                'saves_directory': str(Path(os.environ.get('RETROARCH_SAVES_DIR', Path.home() / 'RomMSync' / 'saves'))),
             }
             self.config['BIOS'] = {
                 'verify_on_launch': 'false',
@@ -6553,7 +6553,7 @@ class AutoSyncLock:
     """Linux-only file locking to prevent multiple auto-sync instances"""
     
     def __init__(self):
-        self.lock_file = Path.home() / '.config' / 'romm-retroarch-sync' / 'autosync.lock'
+        self.lock_file = Path(os.environ.get('ROMM_CONFIG_DIR', Path.home() / '.config' / 'romm-retroarch-sync'))
         self.lock_file.parent.mkdir(parents=True, exist_ok=True)
         self.lock_fd = None
     
