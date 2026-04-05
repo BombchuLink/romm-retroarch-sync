@@ -3558,10 +3558,7 @@ class RetroArchInterface:
             print(f"🎮 Using custom RetroArch path: {custom_path}")
             
             # ALSO CHECK FOR CORES RELATIVE TO CUSTOM PATH
-            custom_config_dir = Path(custom_path).parent
-            if (custom_config_dir / 'config/retroarch').exists():
-                custom_config_dir = custom_config_dir / 'config/retroarch'
-            custom_cores_dir = custom_config_dir / 'cores'
+            custom_cores_dir = Path(custom_path) / 'cores'
             if custom_cores_dir.exists():
                 self.cores_dir = custom_cores_dir
                 print(f"🔧 Using custom cores directory: {custom_cores_dir}")
