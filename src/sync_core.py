@@ -83,7 +83,7 @@ class GameDataCache:
     
     def __init__(self, settings_manager):
         self.settings = settings_manager
-        _base = Path(os.environ.get('ROMM_CONFIG_DIR', Path.home() / '.config' / 'romm-retroarch-sync'))
+        self.cache_dir = Path(os.environ.get('ROMM_CONFIG_DIR', Path.home() / '.config' / 'romm-retroarch-sync'))
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
         # Cache files
@@ -703,7 +703,7 @@ class SettingsManager:
     """Handle saving and loading application settings"""
     
     def __init__(self):
-        _base = Path(os.environ.get('ROMM_CONFIG_DIR', Path.home() / '.config' / 'romm-retroarch-sync'))
+        self.config_dir = Path(os.environ.get('ROMM_CONFIG_DIR', Path.home() / '.config' / 'romm-retroarch-sync'))
         self.config_file = self.config_dir / 'settings.ini'
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
@@ -4123,6 +4123,9 @@ class RetroArchInterface:
         # All possible RetroArch config locations (ordered by likelihood)
         possible_dirs = [
 
+            # Custom defined install
+            Path(os.environ['RETROARCH_DIR']) if os.environ.get('RETROARCH_DIR') else None,
+
             # RetroDECK
             Path.home() / 'retrodeck',
 
@@ -4188,6 +4191,8 @@ class RetroArchInterface:
 
         # Standard detection logic
         possible_dirs = [
+            # Custom defined install
+            Path(os.environ['RETROARCH_DIR']) if os.environ.get('RETROARCH_DIR') else None,
             # RetroDECK (correct path)
             Path.home() / '.var/app/net.retrodeck.retrodeck/config/retroarch',
             # Flatpak RetroArch (prioritize over generic retrodeck folder)
