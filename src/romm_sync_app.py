@@ -2048,13 +2048,24 @@ class EnhancedLibrarySection:
 
                     # ADD GAME TO TREE BEFORE DOWNLOADING so user can see it appear
                     def add_game_to_tree():
-                        # Update available_games
-                        for i, game in enumerate(self.parent.available_games):
-                            if game.get('rom_id') == current_rom_id:
-                                self.parent.available_games[i] = processed_game
-                                break
-                        else:
-                            self.parent.available_games.append(processed_game)
+                        # Update available_games.
+                        # Regional variant files (has _parent_rom) belong inside the parent
+                        # ROM's _sibling_files — adding them as standalone entries would
+                        # create duplicate rows in the platform view.  Only update/append
+                        # if there is no parent-folder ROM already tracked.
+                        _parent_rom_data = processed_game.get('_parent_rom')
+                        _parent_already_tracked = (
+                            _parent_rom_data and
+                            any(g.get('rom_id') == _parent_rom_data.get('id')
+                                for g in self.parent.available_games)
+                        )
+                        if not _parent_already_tracked:
+                            for i, game in enumerate(self.parent.available_games):
+                                if game.get('rom_id') == current_rom_id:
+                                    self.parent.available_games[i] = processed_game
+                                    break
+                            else:
+                                self.parent.available_games.append(processed_game)
 
                         # Update collections_games cache
                         if hasattr(self, 'collections_games'):
@@ -2128,6 +2139,28 @@ class EnhancedLibrarySection:
                                 if game.get('rom_id') == current_rom_id:
                                     self.parent.available_games[i] = processed_game
                                     break
+
+                            # If this is a regional variant file (has a parent folder ROM),
+                            # also update the parent ROM's download status in available_games
+                            # so the platform view reflects the download correctly.
+                            _parent_rom_data = processed_game.get('_parent_rom')
+                            if _parent_rom_data and is_valid_download:
+                                _parent_rom_id = _parent_rom_data.get('id')
+                                _parent_slug = _parent_rom_data.get('platform_slug', platform_slug)
+                                _parent_folder = _parent_rom_data.get('fs_name') or _parent_rom_data.get('name', '')
+                                _parent_local = download_dir / _parent_slug / _parent_folder
+                                if _parent_local.is_dir():
+                                    try:
+                                        _parent_has_files = any(_parent_local.iterdir())
+                                    except (OSError, PermissionError):
+                                        _parent_has_files = False
+                                    if _parent_has_files:
+                                        for i, game in enumerate(self.parent.available_games):
+                                            if game.get('rom_id') == _parent_rom_id:
+                                                self.parent.available_games[i]['is_downloaded'] = True
+                                                self.parent.available_games[i]['local_path'] = str(_parent_local)
+                                                self.parent.available_games[i]['local_size'] = self.parent.get_actual_file_size(_parent_local)
+                                                break
 
                             # Update collections_games cache
                             if hasattr(self, 'collections_games'):
@@ -4026,6 +4059,7 @@ class EnhancedLibrarySection:
         self.selected_rom_ids.clear()
         self.selected_game_keys.clear()
         self.selected_game = None
+        self.selected_disc = None
         self.selected_collection = None
         # Update UI immediately to reflect cleared selections
         self.update_selection_label()
@@ -5244,7 +5278,7 @@ class EnhancedLibrarySection:
         # Rest of the method unchanged...
         if disc_count > 0:
             self.selection_label.set_text(f"{disc_count} disc{'s' if disc_count != 1 else ''} checked")
-        elif self.selected_disc:
+        elif self.selected_disc and self.selected_game:
             # Show disc name when a disc is selected
             game_name = self.selected_game.get('name', 'Unknown')
             disc_name = self.selected_disc.get('name', 'Unknown Disc')
@@ -5753,14 +5787,59 @@ class EnhancedLibrarySection:
         # Try to update in-place first, avoiding full rebuild
         updated = False
 
-        # In collection view, also update the collections_games cache
-        if self.current_view_mode == 'collection' and hasattr(self, 'collections_games'):
+        # Always keep collections_games cache in sync regardless of current view,
+        # so switching from platform view to collection view reflects deletions/updates.
+        if hasattr(self, 'collections_games'):
             for i, collection_game in enumerate(self.collections_games):
                 if collection_game.get('rom_id') == rom_id:
                     # Preserve the collection field when updating
                     updated_collection_game = updated_game_data.copy()
                     updated_collection_game['collection'] = collection_game.get('collection')
                     self.collections_games[i] = updated_collection_game
+
+            # Collections stores regional variants as individual rows using their own
+            # rom_ids (not the parent's).  When a parent game with _sibling_files is
+            # updated (downloaded or deleted from platform view), propagate the new
+            # download state to each sibling's entry in collections_games.
+            sibling_files = updated_game_data.get('_sibling_files', [])
+            if sibling_files:
+                parent_is_downloaded = updated_game_data.get('is_downloaded', False)
+                parent_local_path_str = updated_game_data.get('local_path')
+                parent_local_path = Path(parent_local_path_str) if parent_local_path_str else None
+
+                # Build map: sibling rom_id → full filename (for filesystem check)
+                sibling_id_to_name = {}
+                for sib in sibling_files:
+                    sib_id = sib.get('id')
+                    fs_name = sib.get('fs_name', '')
+                    fs_ext = sib.get('fs_extension', '')
+                    if fs_ext and fs_name and not fs_name.lower().endswith(f'.{fs_ext.lower()}'):
+                        full_name = f"{fs_name}.{fs_ext}"
+                    else:
+                        full_name = fs_name
+                    if sib_id and full_name:
+                        sibling_id_to_name[sib_id] = full_name
+
+                for i, collection_game in enumerate(self.collections_games):
+                    cg_rom_id = collection_game.get('rom_id')
+                    if cg_rom_id not in sibling_id_to_name:
+                        continue
+                    full_name = sibling_id_to_name[cg_rom_id]
+                    variant_is_downloaded = False
+                    variant_local_path = None
+                    if parent_is_downloaded and parent_local_path and parent_local_path.is_dir():
+                        candidate = parent_local_path / full_name
+                        if candidate.exists():
+                            variant_is_downloaded = True
+                            variant_local_path = candidate
+                    updated_variant = collection_game.copy()
+                    updated_variant['is_downloaded'] = variant_is_downloaded
+                    updated_variant['local_path'] = str(variant_local_path) if variant_local_path else None
+                    if variant_local_path:
+                        updated_variant['local_size'] = self.parent.get_actual_file_size(variant_local_path)
+                    else:
+                        updated_variant['local_size'] = 0
+                    self.collections_games[i] = updated_variant
 
         model = self.library_model.tree_model
         for i in range(model.get_n_items()):
