@@ -3551,13 +3551,12 @@ class RetroArchInterface:
         self._is_retrodeck_cache = None
 
         # Check for custom path override first
-        custom_path = self.settings.get('RetroArch', 'custom_path', '').strip()
+        custom_path = os.environ.get('RETROARCH_DIR') or self.settings.get('RetroArch', 'custom_path', '').strip()
 
         if custom_path and Path(custom_path).exists():
             self.retroarch_executable = custom_path
             print(f"🎮 Using custom RetroArch path: {custom_path}")
             
-            # ALSO CHECK FOR CORES RELATIVE TO CUSTOM PATH
             custom_cores_dir = Path(custom_path) / 'cores'
             if custom_cores_dir.exists():
                 self.cores_dir = custom_cores_dir
