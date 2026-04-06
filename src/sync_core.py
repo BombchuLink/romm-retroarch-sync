@@ -3992,8 +3992,10 @@ class RetroArchInterface:
         
         try:
             import subprocess
-            
             # Build command based on RetroArch type - REPLACE THIS SECTION
+
+            self.retroarch_executable = os.environ.get('RETROARCH_EXECUTABLE') or self.retroarch_executable
+
             if 'retrodeck' in self.retroarch_executable.lower():
                 # RetroDECK launches games differently - try multiple approaches
                 cmd = ['flatpak', 'run', 'net.retrodeck.retrodeck', '--pass-args', str(rom_path)]
@@ -4003,7 +4005,7 @@ class RetroArchInterface:
                 cmd = ['snap', 'run', 'retroarch', '-L', core_path, str(rom_path)]
             else:
                 cmd = [self.retroarch_executable, '-L', core_path, str(rom_path)]
-            
+
             logging.debug(f"Launching: {' '.join(cmd)}")
             logging.debug(f"ROM path exists: {os.path.exists(rom_path)}, Core path exists: {os.path.exists(core_path)}")
 
